@@ -79,11 +79,9 @@ def guardar(archivo, data):
 # UTILIDADES DE RESPUESTA
 # =========================
 async def responder(ctx, msg: str):
-    """Responde donde se llamó el comando (DM o servidor)."""
     await ctx.send(msg)
 
 async def enviar_dm(msg: str):
-    """Envía DM directamente a la dueña (OWNER_ID)."""
     user = await bot.fetch_user(OWNER_ID)
     await user.send(msg)
 
@@ -91,20 +89,11 @@ async def enviar_dm(msg: str):
 # ALIAS DE OBRAS
 # =========================
 def resolver_obra(nombre_entrada: str) -> str:
-    """
-    Si 'nombre_entrada' es alias, devuelve el nombre real.
-    Si no es alias, lo devuelve igual.
-    """
     alias = cargar(ARCHIVO_ALIAS, {})
     return alias.get(nombre_entrada, nombre_entrada)
 
 @bot.command()
 async def alias(ctx, corto, *, completo):
-    """
-    Registrar alias:
-    !alias director el-director-de-produccion-basura-tiene-que-sobrevivir-como-idol
-    Luego podrás usar solo 'director' en todos los demás comandos.
-    """
     data = cargar(ARCHIVO_ALIAS, {})
     data[corto] = completo
     guardar(ARCHIVO_ALIAS, data)
@@ -176,12 +165,10 @@ async def on_ready():
 # =========================
 @bot.command()
 async def ping(ctx):
-    """Ver si el bot está vivo."""
     await responder(ctx, "pong 🏓")
 
 @bot.command()
 async def raw_pendientes(ctx):
-    """Ver solo el RAW que falta (siguiente cap) de cada obra."""
     raws = detectar_raw()
     if not raws:
         await responder(ctx, "✅ Todos los siguientes capítulos ya tienen RAW.")
@@ -192,11 +179,45 @@ async def raw_pendientes(ctx):
         await responder(ctx, msg)
 
 # =========================
+# VER ESTADO (NUEVO)
+# =========================
+@bot.command()
+async def ver_estado(ctx, obra, cap):
+    obra = resolver_obra(obra)
+    hoja = sh.worksheet(obra)
+
+    datos = hoja.get_all_values()
+    headers = [h.lower().strip() for h in datos[1]]
+
+    col_raw = headers.index("raw subida")
+    col_trad = headers.index("trad. listo")
+    col_clean = headers.index("clean listo")
+    col_type = headers.index("type listo")
+    col_temple = headers.index("subido a temple")
+
+    fila = next((f for f in datos[2:] if f[0] == cap), None)
+
+    if not fila:
+        await responder(ctx, "❌ Capítulo no encontrado.")
+        return
+
+    def estado(v): 
+        return "✅ listo" if v == "✅" else "⏳ pendiente"
+
+    msg = f"📊 ESTADO {obra} cap {cap}\n\n"
+    msg += f"{estado(fila[col_raw])} RAW\n"
+    msg += f"{estado(fila[col_trad])} Traducción\n"
+    msg += f"{estado(fila[col_clean])} Clean\n"
+    msg += f"{estado(fila[col_type])} Type\n"
+    msg += f"{estado(fila[col_temple])} Subido a Temple\n"
+
+    await responder(ctx, msg)
+
+# =========================
 # HIATUS
 # =========================
 @bot.command()
 async def hiatus(ctx, *, obra):
-    """Pausar una obra."""
     obra = resolver_obra(obra)
     data = cargar(ARCHIVO_HIATUS, [])
     if obra not in data:
@@ -208,7 +229,6 @@ async def hiatus(ctx, *, obra):
 
 @bot.command()
 async def reactivar(ctx, *, obra):
-    """Reactivar una obra en hiatus."""
     obra = resolver_obra(obra)
     data = cargar(ARCHIVO_HIATUS, [])
     if obra in data:
@@ -220,7 +240,6 @@ async def reactivar(ctx, *, obra):
 
 @bot.command()
 async def ver_hiatus(ctx):
-    """Ver lista de obras pausadas."""
     data = cargar(ARCHIVO_HIATUS, [])
     if not data:
         await responder(ctx, "✅ No hay obras en hiatus.")
@@ -229,11 +248,10 @@ async def ver_hiatus(ctx):
         await responder(ctx, msg)
 
 # =========================
-# SOLO (OBRAS QUE HACES TÚ SOLA)
+# SOLO
 # =========================
 @bot.command()
 async def solo(ctx, *, obra):
-    """Marcar obra como solo tuya."""
     obra = resolver_obra(obra)
     data = cargar(ARCHIVO_SOLO, [])
     if obra not in data:
@@ -245,7 +263,6 @@ async def solo(ctx, *, obra):
 
 @bot.command()
 async def reactivar_solo(ctx, *, obra):
-    """Quitar modo solo de una obra."""
     obra = resolver_obra(obra)
     data = cargar(ARCHIVO_SOLO, [])
     if obra in data:
@@ -257,7 +274,6 @@ async def reactivar_solo(ctx, *, obra):
 
 @bot.command()
 async def ver_solo(ctx):
-    """Ver obras que haces solo tú."""
     data = cargar(ARCHIVO_SOLO, [])
     if not data:
         await responder(ctx, "✅ No hay obras en modo SOLO.")
@@ -266,224 +282,63 @@ async def ver_solo(ctx):
         await responder(ctx, msg)
 
 # =========================
-# CALENDARIO (DÍAS DE SUBIDA)
-# =========================
-def formatear_calendario_item(datos):
-    """
-    datos = {"tipo": "...", "valor": ...}
-    Lo convierte en texto corto y bonito.
-    """
-    tipo = datos.get("tipo")
-    valor = datos.get("valor")
-
-    if tipo == "semana":
-        return str(valor)
-    if tipo == "semana_multiple":
-        return ", ".join(valor)
-    if tipo == "mes":
-        return ", ".join(str(x) for x in valor)
-    # fallback
-    return str(datos)
-
-@bot.command()
-async def agregar_obra(ctx, obra, *, valor):
-    """
-    Asignar día de subida.
-    Ejemplos:
-    !agregar_obra yang-ilwoo-y-yo miércoles
-    !agregar_obra director lunes, jueves
-    !agregar_obra director 4,14,24
-    """
-    obra = resolver_obra(obra)
-    cal = cargar(ARCHIVO_CALENDARIO, {})
-    valor = valor.lower().replace(" ", "")
-
-    # Solo números y comas → días del mes
-    if all(ch.isdigit() or ch == "," for ch in valor):
-        dias = [int(x) for x in valor.split(",") if x]
-        cal[obra] = {"tipo": "mes", "valor": dias}
-        guardar(ARCHIVO_CALENDARIO, cal)
-        bonito = formatear_calendario_item(cal[obra])
-        await responder(ctx, f"📆 {obra} → {bonito}")
-        return
-
-    # Varios días de la semana: lunes,viernes,domingo
-    if "," in valor:
-        dias = valor.split(",")
-        for d in dias:
-            if d not in DIAS_VALIDOS:
-                await responder(ctx, "❌ Día inválido. Usa cosas como: lunes, martes, miércoles...")
-                return
-        cal[obra] = {"tipo": "semana_multiple", "valor": dias}
-        guardar(ARCHIVO_CALENDARIO, cal)
-        bonito = formatear_calendario_item(cal[obra])
-        await responder(ctx, f"📅 {obra} → {bonito}")
-        return
-
-    # Un solo día de semana
-    if valor in DIAS_VALIDOS:
-        cal[obra] = {"tipo": "semana", "valor": valor}
-        guardar(ARCHIVO_CALENDARIO, cal)
-        bonito = formatear_calendario_item(cal[obra])
-        await responder(ctx, f"📅 {obra} → {bonito}")
-        return
-
-    await responder(ctx, "❌ Formato inválido. Ejemplo: lunes / lunes,viernes / 4,14,24")
-
-@bot.command()
-async def cambiar_dia(ctx, obra, *, nuevo_valor):
-    """
-    Cambiar el día o días de subida de una obra.
-    Usa el mismo formato que agregar_obra.
-    """
-    obra = resolver_obra(obra)
-    cal = cargar(ARCHIVO_CALENDARIO, {})
-    if obra not in cal:
-        await responder(ctx, "❌ Esa obra no está en el calendario.")
-        return
-    # Reutilizamos la lógica de agregar_obra
-    ctx.message.content = f"!agregar_obra {obra} {nuevo_valor}"
-    await agregar_obra(ctx, obra, valor=nuevo_valor)
-
-@bot.command()
-async def eliminar_obra(ctx, *, obra):
-    """Eliminar una obra del calendario."""
-    obra_real = resolver_obra(obra)
-    cal = cargar(ARCHIVO_CALENDARIO, {})
-    if obra_real in cal:
-        del cal[obra_real]
-        guardar(ARCHIVO_CALENDARIO, cal)
-        await responder(ctx, f"🗑️ {obra_real} eliminada del calendario")
-    else:
-        await responder(ctx, "❌ Esa obra no está en el calendario.")
-
-@bot.command()
-async def calendario(ctx):
-    """Ver calendario de subida en formato corto."""
-    cal = cargar(ARCHIVO_CALENDARIO, {})
-    if not cal:
-        await responder(ctx, "📅 El calendario está vacío.")
-        return
-    msg = "📅 CALENDARIO:\n"
-    for obra, datos in cal.items():
-        bonito = formatear_calendario_item(datos)
-        msg += f"- {obra} → {bonito}\n"
-    await responder(ctx, msg)
-
-# =========================
-# HOY / MAÑANA
-# =========================
-def obras_por_fecha(fecha: datetime.date):
-    cal = cargar(ARCHIVO_CALENDARIO, {})
-    dia_semana_en = fecha.strftime("%A").lower()
-    dia_semana = TRAD.get(dia_semana_en, "")
-    dia_mes = fecha.day
-
-    resultado = []
-    for obra, datos in cal.items():
-        tipo = datos.get("tipo")
-        valor = datos.get("valor")
-
-        if tipo == "semana" and valor == dia_semana:
-            resultado.append(obra)
-        elif tipo == "semana_multiple" and dia_semana in valor:
-            resultado.append(obra)
-        elif tipo == "mes" and dia_mes in valor:
-            resultado.append(obra)
-
-    return resultado
-
-@bot.command()
-async def hoy(ctx):
-    """Ver lo que toca hoy según el calendario."""
-    # Usamos fecha de Perú (UTC-5)
-    ahora = datetime.datetime.utcnow() - datetime.timedelta(hours=5)
-    fecha = ahora.date()
-    obras = obras_por_fecha(fecha)
-    if not obras:
-        await responder(ctx, "📭 Hoy no hay obras en el calendario.")
-    else:
-        msg = "📅 HOY:\n" + "\n".join(f"- {o}" for o in obras)
-        await responder(ctx, msg)
-
-@bot.command()
-async def mañana(ctx):
-    """Ver lo que toca mañana según el calendario."""
-    ahora = datetime.datetime.utcnow() - datetime.timedelta(hours=5)
-    fecha = (ahora + datetime.timedelta(days=1)).date()
-    obras = obras_por_fecha(fecha)
-    if not obras:
-        await responder(ctx, "📭 Mañana no hay obras en el calendario.")
-    else:
-        msg = "📅 MAÑANA:\n" + "\n".join(f"- {o}" for o in obras)
-        await responder(ctx, msg)
-
-# =========================
-# PLAZOS Y ATRASOS
+# COMANDOS (NUEVO)
 # =========================
 @bot.command()
-async def asignar_plazo(ctx, obra, cap, persona, fecha):
-    """
-    Asignar plazo:
-    !asignar_plazo director 7 maria 2025-12-10
-    (fecha en formato YYYY-MM-DD)
-    """
-    obra = resolver_obra(obra)
-    data = cargar(ARCHIVO_PLAZOS, {})
-    data.setdefault(obra, {})
-    data[obra][cap] = {"persona": persona, "fecha": fecha}
-    guardar(ARCHIVO_PLAZOS, data)
-    await responder(ctx, f"✅ Plazo asignado: {obra} cap {cap} → {persona} hasta {fecha}")
+async def comandos(ctx):
+    await responder(ctx, """
+📌 COMANDOS DEL BOT
 
-@bot.command()
-async def eliminar_plazo(ctx, obra, cap):
-    """Borrar un plazo concreto."""
-    obra = resolver_obra(obra)
-    data = cargar(ARCHIVO_PLAZOS, {})
-    if obra in data and cap in data[obra]:
-        del data[obra][cap]
-        guardar(ARCHIVO_PLAZOS, data)
-        await responder(ctx, "🗑️ Plazo eliminado.")
-    else:
-        await responder(ctx, "❌ No encontré ese plazo.")
+!ping → Ver si el bot está activo.
 
-@bot.command()
-async def ver_atrasos(ctx):
-    """Ver atrasos según la fecha límite asignada."""
-    data = cargar(ARCHIVO_PLAZOS, {})
-    if not data:
-        await responder(ctx, "✅ No hay plazos registrados.")
-        return
+!raw_pendientes → Ver el siguiente capítulo que falta RAW de cada obra.
 
-    # Fecha de hoy en Perú
-    hoy_peru = (datetime.datetime.utcnow() - datetime.timedelta(hours=5)).date()
-    atrasos = []
+!hiatus obra → Poner una obra en pausa.
 
-    for obra, caps in data.items():
-        for cap, info in caps.items():
-            try:
-                f = datetime.datetime.strptime(info["fecha"], "%Y-%m-%d").date()
-            except ValueError:
-                continue
-            if hoy_peru > f:
-                dias = (hoy_peru - f).days
-                atrasos.append(f"{obra} cap {cap} → {info['persona']} ({dias} días tarde)")
+!reactivar obra → Quitar la obra del hiatus.
 
-    if not atrasos:
-        await responder(ctx, "✅ No hay atrasos.")
-    else:
-        msg = "⏰ ATRASOS:\n" + "\n".join(f"- {a}" for a in atrasos)
-        await responder(ctx, msg)
+!ver_hiatus → Ver todas las obras pausadas.
+
+!solo obra → Marcar una obra como solo tuya.
+
+!reactivar_solo obra → Quitar el modo solo.
+
+!ver_solo → Ver obras en modo solo.
+
+!agregar_obra obra día → Asignar día(s) de subida.
+
+!calendario → Ver calendario completo.
+
+!cambiar_dia obra día → Cambiar día de subida.
+
+!eliminar_obra obra → Eliminar obra del calendario.
+
+!asignar_plazo obra cap persona fecha → Asignar plazo.
+
+!eliminar_plazo obra cap → Borrar un plazo.
+
+!ver_atrasos → Ver atrasos.
+
+!hoy → Ver lo de hoy.
+
+!mañana → Ver lo de mañana.
+
+!alias corto nombre → Crear alias.
+
+!ver_alias → Ver alias registrados.
+
+!ver_estado obra cap → Ver qué falta en ese capítulo.
+
+!comandos → Ver esta lista completa.
+""")
 
 # =========================
-# RECORDATORIOS AUTOMÁTICOS (HORARIO PERÚ)
+# RECORDATORIOS AUTOMÁTICOS
 # =========================
 @tasks.loop(minutes=1)
 async def chequeo_automatico():
-    # Hora de Perú = UTC - 5
     ahora_peru = datetime.datetime.utcnow() - datetime.timedelta(hours=5)
 
-    # 6 AM y 6 PM (hora Perú)
     if ahora_peru.minute == 0 and ahora_peru.hour in [6, 18]:
         raws = detectar_raw()
         if raws:
@@ -493,7 +348,6 @@ async def chequeo_automatico():
         else:
             await enviar_dm("✅ No hay RAW pendientes.")
 
-        # Domingo 6 PM → resumen semanal
         if ahora_peru.weekday() == 6 and ahora_peru.hour == 18:
             await enviar_dm("📊 RESUMEN SEMANAL")
             await enviar_dm(f"RAW pendientes: {len(raws)}")
