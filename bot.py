@@ -111,6 +111,99 @@ async def ver_alias(ctx):
     await responder(ctx, msg)
 
 # =========================
+# UTILIDADES DE HOJAS / CAPS
+# =========================
+def obtener_hoja_y_datos(obra: str):
+    """Devuelve (hoja, headers, datos) o (None, None, None) si falla."""
+    try:
+        hoja = sh.worksheet(obra)
+    except Exception:
+        return None, None, None
+
+    datos = hoja.get_all_values()
+    if len(datos) < 3:
+        return hoja, None, None
+
+    headers = [h.lower().strip() for h in datos[1]]
+    return hoja, headers, datos
+
+def encontrar_proximo_cap_no_temple(headers, datos):
+    """Primer cap donde 'subido a temple' != ✅."""
+    if "subido a temple" not in headers:
+        return None, None
+    idx_temple = headers.index("subido a temple")
+
+    for fila in datos[2:]:
+        if len(fila) <= idx_temple:
+            continue
+        cap = fila[0]
+        if not cap:
+            continue
+        val_temple = fila[idx_temple]
+        if val_temple != "✅":
+            return cap, fila
+    return None, None
+
+def faltas_asignacion(headers, fila):
+    """
+    Mira columnas 'traductor', 'cleaner', 'typer' para ver qué falta asignar.
+    Devuelve lista como ['Tradu', 'Clean', 'Type'].
+    """
+    faltan = []
+
+    def vacio(v):
+        return (v is None) or (v.strip() == "")
+
+    # Traductor
+    if "traductor" in headers:
+        idx = headers.index("traductor")
+        if len(fila) <= idx or vacio(fila[idx]):
+            faltan.append("Tradu")
+
+    # Cleaner
+    if "cleaner" in headers:
+        idx = headers.index("cleaner")
+        if len(fila) <= idx or vacio(fila[idx]):
+            faltan.append("Clean")
+
+    # Typer
+    if "typer" in headers:
+        idx = headers.index("typer")
+        if len(fila) <= idx or vacio(fila[idx]):
+            faltan.append("Type")
+
+    return faltan
+
+def cap_listo_para_temple(headers, fila):
+    """
+    Devuelve True si RAW, trad, clean y type están listos (✅) pero no subido a temple.
+    """
+    necesarios = ["raw subida", "trad. listo", "clean listo", "type listo", "subido a temple"]
+    if not all(n in headers for n in necesarios):
+        return False
+
+    idx_raw = headers.index("raw subida")
+    idx_trad = headers.index("trad. listo")
+    idx_clean = headers.index("clean listo")
+    idx_type = headers.index("type listo")
+    idx_temple = headers.index("subido a temple")
+
+    if len(fila) <= max(idx_raw, idx_trad, idx_clean, idx_type, idx_temple):
+        return False
+
+    val_raw = fila[idx_raw]
+    val_trad = fila[idx_trad]
+    val_clean = fila[idx_clean]
+    val_type = fila[idx_type]
+    val_temple = fila[idx_temple]
+
+    return (val_raw == "✅" and
+            val_trad == "✅" and
+            val_clean == "✅" and
+            val_type == "✅" and
+            val_temple != "✅")
+
+# =========================
 # DETECTAR RAW (SIGUIENTE CAPÍTULO)
 # =========================
 def detectar_raw():
@@ -138,6 +231,8 @@ def detectar_raw():
             if len(fila) <= max(idx_raw, idx_temple):
                 continue
             cap = fila[0]
+            if not cap:
+                continue
             val_raw = fila[idx_raw]
             val_temple = fila[idx_temple]
             if val_temple != "✅":
@@ -166,11 +261,10 @@ async def ping(ctx):
 async def raw_pendientes(ctx):
     raws = detectar_raw()
     if not raws:
-        await responder(ctx, "✅ Todos los siguientes capítulos ya tienen RAW.")
+        await responder(ctx, "⭑ RAW PENDIENTES ⭑\n\n✅ No hay RAW pendientes para el siguiente Cap de cada obra.")
     else:
-        msg = "⚠️ RAW PENDIENTES:\n"
-        for obra, cap in raws:
-            msg += f"- {obra} cap {cap}\n"
+        lineas = [f"• {obra} → Cap {cap}" for obra, cap in raws]
+        msg = "⭑ RAW PENDIENTES ⭑\n\n" + "\n".join(lineas)
         await responder(ctx, msg)
 
 # =========================
@@ -179,19 +273,22 @@ async def raw_pendientes(ctx):
 @bot.command()
 async def ver_estado(ctx, obra, cap):
     obra = resolver_obra(obra)
-    hoja = sh.worksheet(obra)
+    hoja, headers, datos = obtener_hoja_y_datos(obra)
+    if hoja is None or headers is None:
+        await responder(ctx, "❌ No pude leer esa obra en el Excel.")
+        return
 
-    datos = hoja.get_all_values()
-    headers = [h.lower().strip() for h in datos[1]]
-
-    col_raw = headers.index("raw subida")
-    col_trad = headers.index("trad. listo")
-    col_clean = headers.index("clean listo")
-    col_type = headers.index("type listo")
-    col_temple = headers.index("subido a temple")
+    try:
+        col_raw = headers.index("raw subida")
+        col_trad = headers.index("trad. listo")
+        col_clean = headers.index("clean listo")
+        col_type = headers.index("type listo")
+        col_temple = headers.index("subido a temple")
+    except ValueError:
+        await responder(ctx, "❌ Faltan columnas esperadas en esa hoja (RAW / listo / Temple).")
+        return
 
     fila = next((f for f in datos[2:] if len(f) > 0 and f[0] == cap), None)
-
     if not fila:
         await responder(ctx, "❌ Capítulo no encontrado.")
         return
@@ -199,7 +296,7 @@ async def ver_estado(ctx, obra, cap):
     def estado(v):
         return "✅ listo" if v == "✅" else "⏳ pendiente"
 
-    msg = f"📊 ESTADO {obra} cap {cap}\n\n"
+    msg = f"⭑ ESTADO {obra} Cap {cap} ⭑\n\n"
     msg += f"{estado(fila[col_raw])} RAW\n"
     msg += f"{estado(fila[col_trad])} Traducción\n"
     msg += f"{estado(fila[col_clean])} Clean\n"
@@ -302,6 +399,7 @@ async def agregar_obra(ctx, obra, *, valor):
     cal = cargar(ARCHIVO_CALENDARIO, {})
     valor = valor.lower().replace(" ", "")
 
+    # Días del mes
     if all(ch.isdigit() or ch == "," for ch in valor):
         dias = [int(x) for x in valor.split(",") if x]
         cal[obra] = {"tipo": "mes", "valor": dias}
@@ -310,6 +408,7 @@ async def agregar_obra(ctx, obra, *, valor):
         await responder(ctx, f"📆 {obra} → {bonito}")
         return
 
+    # Varios días de semana
     if "," in valor:
         dias = valor.split(",")
         for d in dias:
@@ -322,6 +421,7 @@ async def agregar_obra(ctx, obra, *, valor):
         await responder(ctx, f"📅 {obra} → {bonito}")
         return
 
+    # Un solo día
     if valor in DIAS_VALIDOS:
         cal[obra] = {"tipo": "semana", "valor": valor}
         guardar(ARCHIVO_CALENDARIO, cal)
@@ -387,27 +487,110 @@ def obras_por_fecha(fecha: datetime.date):
 
     return resultado
 
+def obtener_caps_a_asignar_para_fecha(fecha_base: datetime.date):
+    """
+    Busca obras que se subirán 7 días después de 'fecha_base'
+    y devuelve lista de (obra, cap, faltas_asignar).
+    """
+    fecha_target = fecha_base + datetime.timedelta(days=7)
+    obras_target = obras_por_fecha(fecha_target)
+    hiatus = cargar(ARCHIVO_HIATUS, [])
+    solo = cargar(ARCHIVO_SOLO, [])
+    resultado = []
+
+    for obra in obras_target:
+        if obra in IGNORAR_HOJAS or obra in hiatus or obra in solo:
+            continue
+        hoja, headers, datos = obtener_hoja_y_datos(obra)
+        if hoja is None or headers is None:
+            continue
+        cap, fila = encontrar_proximo_cap_no_temple(headers, datos)
+        if not cap or not fila:
+            continue
+        faltan = faltas_asignacion(headers, fila)
+        if faltan:
+            resultado.append((obra, cap, faltan))
+
+    return resultado
+
 @bot.command()
 async def hoy(ctx):
+    # Fecha base (hoy Perú)
     ahora = datetime.datetime.utcnow() - datetime.timedelta(hours=5)
     fecha = ahora.date()
+
+    # Obras que se suben hoy
     obras = obras_por_fecha(fecha)
+
+    # Caps a asignar hoy (para dentro de 7 días)
+    asignar = obtener_caps_a_asignar_para_fecha(fecha)
+
+    msg_partes = []
+
+    msg = "⭑ HOY ⭑\n\n"
     if not obras:
-        await responder(ctx, "📭 Hoy no hay obras en el calendario.")
+        msg += "📭 Hoy no hay obras en el calendario.\n"
     else:
-        msg = "📅 HOY:\n" + "\n".join(f"- {o}" for o in obras)
-        await responder(ctx, msg)
+        msg += "⬆️ Subidas a la web:\n"
+        for obra in obras:
+            # Intentamos obtener el próximo cap no subido
+            hoja, headers, datos = obtener_hoja_y_datos(obra)
+            if hoja is None or headers is None:
+                msg += f"• {obra}\n"
+                continue
+            cap, fila = encontrar_proximo_cap_no_temple(headers, datos)
+            if cap:
+                msg += f"• {obra} → Cap {cap}\n"
+            else:
+                msg += f"• {obra}\n"
+    msg_partes.append(msg)
+
+    if asignar:
+        lineas = []
+        for obra, cap, faltan in asignar:
+            faltas_txt = ", ".join(faltan)
+            lineas.append(f"• {obra} → Cap {cap} | {faltas_txt}")
+        msg2 = "\n📝 Caps por asignar (para dentro de 7 días):\n" + "\n".join(lineas)
+        msg_partes.append(msg2)
+
+    await responder(ctx, "\n".join(msg_partes))
 
 @bot.command()
 async def mañana(ctx):
     ahora = datetime.datetime.utcnow() - datetime.timedelta(hours=5)
     fecha = (ahora + datetime.timedelta(days=1)).date()
+
     obras = obras_por_fecha(fecha)
+    asignar = obtener_caps_a_asignar_para_fecha(fecha)
+
+    msg_partes = []
+
+    msg = "⭑ MAÑANA ⭑\n\n"
     if not obras:
-        await responder(ctx, "📭 Mañana no hay obras en el calendario.")
+        msg += "📭 Mañana no hay obras en el calendario.\n"
     else:
-        msg = "📅 MAÑANA:\n" + "\n".join(f"- {o}" for o in obras)
-        await responder(ctx, msg)
+        msg += "⬆️ Subidas a la web:\n"
+        for obra in obras:
+            hoja, headers, datos = obtener_hoja_y_datos(obra)
+            if hoja is None or headers is None:
+                msg += f"• {obra}\n"
+                continue
+            cap, fila = encontrar_proximo_cap_no_temple(headers, datos)
+            if cap:
+                msg += f"• {obra} → Cap {cap}\n"
+            else:
+                msg += f"• {obra}\n"
+    msg_partes.append(msg)
+
+    if asignar:
+        lineas = []
+        for obra, cap, faltan in asignar:
+            faltas_txt = ", ".join(faltan)
+            lineas.append(f"• {obra} → Cap {cap} | {faltas_txt}")
+        msg2 = "\n📝 Caps por asignar (para dentro de 7 días):\n" + "\n".join(lineas)
+        msg_partes.append(msg2)
+
+    await responder(ctx, "\n".join(msg_partes))
 
 # =========================
 # PLAZOS Y ATRASOS
@@ -419,7 +602,7 @@ async def asignar_plazo(ctx, obra, cap, persona, fecha):
     data.setdefault(obra, {})
     data[obra][cap] = {"persona": persona, "fecha": fecha}
     guardar(ARCHIVO_PLAZOS, data)
-    await responder(ctx, f"✅ Plazo asignado: {obra} cap {cap} → {persona} hasta {fecha}")
+    await responder(ctx, f"✅ Plazo asignado: {obra} Cap {cap} → {persona} hasta {fecha}")
 
 @bot.command()
 async def eliminar_plazo(ctx, obra, cap):
@@ -450,7 +633,7 @@ async def ver_atrasos(ctx):
                 continue
             if hoy_peru > f:
                 dias = (hoy_peru - f).days
-                atrasos.append(f"{obra} cap {cap} → {info['persona']} ({dias} días tarde)")
+                atrasos.append(f"{obra} Cap {cap} → {info['persona']} ({dias} días tarde)")
 
     if not atrasos:
         await responder(ctx, "✅ No hay atrasos.")
@@ -468,17 +651,17 @@ async def comandos(ctx):
 
 !ping → Ver si el bot está activo.
 
-!raw_pendientes → Ver el siguiente capítulo que falta RAW de cada obra.
+!raw_pendientes → Ver el siguiente Cap que falta RAW de cada obra.
 
-!ver_estado obra cap → Ver qué falta en ese capítulo (RAW, tradu, clean, type, Temple).
+!ver_estado obra Cap → Ver qué falta en ese Cap (RAW, tradu, clean, type, Temple).
 
-!hiatus obra → Poner una obra en pausa (no se revisa para recordatorios).
+!hiatus obra → Poner una obra en pausa (no entra en recordatorios de RAW / asignación).
 
 !reactivar obra → Quitar la obra del hiatus.
 
 !ver_hiatus → Ver todas las obras pausadas.
 
-!solo obra → Marcar una obra como solo tuya.
+!solo obra → Marcar una obra como solo tuya (sin recordatorios de RAW / asignación).
 
 !reactivar_solo obra → Quitar el modo solo.
 
@@ -492,13 +675,13 @@ async def comandos(ctx):
 
 !calendario → Ver el calendario completo.
 
-!hoy → Ver lo que toca hoy según el calendario.
+!hoy → Ver lo que toca hoy (subidas) y qué Caps hay que asignar (para dentro de 7 días).
 
-!mañana → Ver lo que toca mañana según el calendario.
+!mañana → Ver lo que toca mañana (subidas) y qué Caps hay que asignar (para dentro de 7 días).
 
-!asignar_plazo obra cap persona fecha → Asignar una fecha límite (YYYY-MM-DD) a alguien.
+!asignar_plazo obra Cap persona fecha → Asignar una fecha límite (YYYY-MM-DD) a alguien.
 
-!eliminar_plazo obra cap → Borrar un plazo.
+!eliminar_plazo obra Cap → Borrar un plazo.
 
 !ver_atrasos → Ver quién está atrasado según los plazos.
 
@@ -510,115 +693,108 @@ async def comandos(ctx):
 """)
 
 # =========================
-# RECORDATORIOS AUTOMÁTICOS (RAW, RAW 10 DÍAS, TEMPLE)
+# RECORDATORIOS AUTOMÁTICOS
 # =========================
 @tasks.loop(minutes=1)
 async def chequeo_automatico():
-    # Hora de Perú = UTC - 5
+    # Hora de Perú
     ahora_peru = datetime.datetime.utcnow() - datetime.timedelta(hours=5)
     hoy = ahora_peru.date()
 
     # Solo actuamos a las 6:00 y 18:00
-    if ahora_peru.minute == 0 and ahora_peru.hour in [6, 18]:
-        # 1) RAW normal (lo que ya tenías)
-        raws = detectar_raw()
-        if raws:
-            await enviar_dm("⚠️ RAW PENDIENTES (siguiente capítulo de cada obra):")
-            for obra, cap in raws:
-                await enviar_dm(f"- {obra} cap {cap}")
-        else:
-            await enviar_dm("✅ No hay RAW pendientes para el siguiente capítulo de cada obra.")
+    if ahora_peru.minute != 0 or ahora_peru.hour not in [6, 18]:
+        return
 
-        # 2) RAW 10 días antes según calendario
-        fecha_objetivo = hoy + datetime.timedelta(days=10)
-        obras_en_10_dias = obras_por_fecha(fecha_objetivo)
-        hiatus = cargar(ARCHIVO_HIATUS, [])
-        solo = cargar(ARCHIVO_SOLO, [])
-        avisos_raw_10 = []
+    mensajes = []
 
-        for obra in obras_en_10_dias:
-            if obra in IGNORAR_HOJAS or obra in hiatus or obra in solo:
+    # 1) RAW inmediato (siguiente Cap de cada obra)
+    raws = detectar_raw()
+    if raws:
+        lineas = [f"• {obra} → Cap {cap}" for obra, cap in raws]
+        msg_raw = "⭑ RAW PENDIENTES ⭑\n\n" + "\n".join(lineas)
+        mensajes.append(msg_raw)
+    else:
+        mensajes.append("⭑ RAW PENDIENTES ⭑\n\n✅ No hay RAW pendientes para el siguiente Cap de cada obra.")
+
+    # 2) RAW 10 días antes según calendario
+    fecha_raw_10 = hoy + datetime.timedelta(days=10)
+    obras_en_10 = obras_por_fecha(fecha_raw_10)
+    hiatus = cargar(ARCHIVO_HIATUS, [])
+    solo = cargar(ARCHIVO_SOLO, [])
+    avisos_raw_10 = []
+
+    for obra in obras_en_10:
+        if obra in IGNORAR_HOJAS or obra in hiatus or obra in solo:
+            continue
+        hoja, headers, datos = obtener_hoja_y_datos(obra)
+        if hoja is None or headers is None:
+            continue
+        if "raw subida" not in headers or "subido a temple" not in headers:
+            continue
+        idx_raw = headers.index("raw subida")
+        idx_temple = headers.index("subido a temple")
+
+        for fila in datos[2:]:
+            if len(fila) <= max(idx_raw, idx_temple):
                 continue
-            try:
-                hoja = sh.worksheet(obra)
-            except Exception:
+            cap = fila[0]
+            if not cap:
                 continue
-
-            datos = hoja.get_all_values()
-            if len(datos) < 3:
-                continue
-            headers = [h.lower().strip() for h in datos[1]]
-            if "raw subida" not in headers or "subido a temple" not in headers:
-                continue
-            idx_raw = headers.index("raw subida")
-            idx_temple = headers.index("subido a temple")
-
-            for fila in datos[2:]:
-                if len(fila) <= max(idx_raw, idx_temple):
-                    continue
-                cap = fila[0]
-                if not cap:
-                    continue
-                val_raw = fila[idx_raw]
-                val_temple = fila[idx_temple]
-                if val_temple != "✅":
-                    if val_raw != "✅":
-                        avisos_raw_10.append((obra, cap))
-                    break
-
-        if avisos_raw_10:
-            await enviar_dm("⏰ Dentro de 10 días se suben estas obras y les falta RAW:")
-            for obra, cap in avisos_raw_10:
-                await enviar_dm(f"- {obra} cap {cap}")
-
-        # 3) Recordatorio de al menos UN capítulo listo para subir a Temple
-        candidato_temple = None
-        for hoja in sh.worksheets():
-            nombre = hoja.title
-            if nombre in IGNORAR_HOJAS:
-                continue
-            datos = hoja.get_all_values()
-            if len(datos) < 3:
-                continue
-            headers = [h.lower().strip() for h in datos[1]]
-            necesarios = ["raw subida", "trad. listo", "clean listo", "type listo", "subido a temple"]
-            if not all(n in headers for n in necesarios):
-                continue
-            idx_raw = headers.index("raw subida")
-            idx_trad = headers.index("trad. listo")
-            idx_clean = headers.index("clean listo")
-            idx_type = headers.index("clean listo") if False else headers.index("type listo")
-            idx_temple = headers.index("subido a temple")
-
-            for fila in datos[2:]:
-                if len(fila) <= max(idx_raw, idx_trad, idx_clean, idx_type, idx_temple):
-                    continue
-                cap = fila[0]
-                if not cap:
-                    continue
-                val_raw = fila[idx_raw]
-                val_trad = fila[idx_trad]
-                val_clean = fila[idx_clean]
-                val_type = fila[idx_type]
-                val_temple = fila[idx_temple]
-
-                if (val_raw == "✅" and val_trad == "✅" and
-                    val_clean == "✅" and val_type == "✅" and
-                    val_temple != "✅"):
-                    candidato_temple = (nombre, cap)
-                    break
-
-            if candidato_temple:
+            val_raw = fila[idx_raw]
+            val_temple = fila[idx_temple]
+            if val_temple != "✅":
+                if val_raw != "✅":
+                    avisos_raw_10.append((obra, cap))
                 break
 
-        if candidato_temple:
-            obra_t, cap_t = candidato_temple
-            await enviar_dm(f"⬆️ Tienes al menos un capítulo listo para subir a Temple:\n- {obra_t} cap {cap_t}")
+    if avisos_raw_10:
+        lineas = [f"• {obra} → Cap {cap}" for obra, cap in avisos_raw_10]
+        msg10 = "⭑ RAW PRÓXIMO (dentro de 10 días) ⭑\n\n" + "\n".join(lineas)
+        mensajes.append(msg10)
 
-        # 4) Domingo 6 PM → resumen semanal simple
-        if ahora_peru.weekday() == 6 and ahora_peru.hour == 18:
-            await enviar_dm("📊 RESUMEN SEMANAL")
-            await enviar_dm(f"RAW pendientes actuales: {len(raws)}")
+    # 3) Caps por asignar (para dentro de 7 días desde hoy)
+    asignar_hoy = obtener_caps_a_asignar_para_fecha(hoy)
+    if asignar_hoy:
+        lineas = []
+        for obra, cap, faltan in asignar_hoy:
+            faltas_txt = ", ".join(faltan)
+            lineas.append(f"• {obra} → Cap {cap} | {faltas_txt}")
+        msg_asig = "⭑ CAPS POR ASIGNAR (para dentro de 7 días) ⭑\n\n" + "\n".join(lineas)
+        mensajes.append(msg_asig)
+
+    # 4) Al menos un Cap listo para subir a Temple
+    candidato_temple = None
+    for hoja in sh.worksheets():
+        nombre = hoja.title
+        if nombre in IGNORAR_HOJAS:
+            continue
+        hoja2, headers, datos = obtener_hoja_y_datos(nombre)
+        if hoja2 is None or headers is None:
+            continue
+        for fila in datos[2:]:
+            if cap_listo_para_temple(headers, fila):
+                cap = fila[0]
+                if cap:
+                    candidato_temple = (nombre, cap)
+                    break
+        if candidato_temple:
+            break
+
+    if candidato_temple:
+        obra_t, cap_t = candidato_temple
+        msg_temple = "⭑ LISTO PARA SUBIR A LA WEB ⭑\n\n"
+        msg_temple += f"• {obra_t} → Cap {cap_t}"
+        mensajes.append(msg_temple)
+
+    # 5) Resumen semanal simple (domingo 18:00)
+    if ahora_peru.weekday() == 6 and ahora_peru.hour == 18:
+        msg_resumen = "⭑ RESUMEN SEMANAL ⭑\n\n"
+        msg_resumen += f"RAW pendientes actuales: {len(raws)}"
+        mensajes.append(msg_resumen)
+
+    # Enviar todo por DM en bloques separados
+    for m in mensajes:
+        await enviar_dm(m)
 
 # =========================
 # INICIO
