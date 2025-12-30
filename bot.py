@@ -247,8 +247,9 @@ def detectar_raw():
 # =========================
 @bot.event
 async def on_ready():
-    print("✅ Bot COMPLETO activo 24/7 (horario Perú)")
-    chequeo_automatico.start()
+    print("✅ Bot activo 24/7 (horario Perú)")
+    if not chequeo_automatico.is_running():
+        chequeo_automatico.start()
 
 # =========================
 # COMANDOS BÁSICOS
@@ -801,3 +802,4 @@ async def chequeo_automatico():
 # =========================
 mantener_vivo()
 bot.run(DISCORD_TOKEN)
+
