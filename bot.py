@@ -797,9 +797,31 @@ async def chequeo_automatico():
     for m in mensajes:
         await enviar_dm(m)
 
+import time
+
 # =========================
 # INICIO
 # =========================
 mantener_vivo()
-bot.run(DISCORD_TOKEN)
+
+backoff = 60  # empieza esperando 60s si Discord bloquea (evita loop de reinicios)
+
+while True:
+    try:
+        bot.run(DISCORD_TOKEN)
+        break  # si por alguna razón bot.run termina "limpio", salimos
+    except discord.HTTPException as e:
+        # Si Discord/Cloudflare bloquea (429), NO cierres el proceso: espera y reintenta
+        if getattr(e, "status", None) == 429:
+            print(f"⚠️ Rate limit / bloqueo (429). Reintentando más tarde. backoff={backoff}s")
+            time.sleep(backoff)
+            backoff = min(backoff * 2, 3600)  # máximo 1 hora
+            continue
+        raise  # otros errores: que sí falle para que lo veas
+    except Exception as e:
+        # Cualquier otro error inesperado: log y reintenta con un backoff suave
+        print(f"❌ Error inesperado: {e}. Reintentando en {backoff}s")
+        time.sleep(backoff)
+        backoff = min(backoff * 2, 3600)
+
 
