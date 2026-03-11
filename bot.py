@@ -1,4 +1,4 @@
-# =========================
+#========================= 
 # IMPORTS
 # =========================
 
@@ -749,13 +749,13 @@ async def ping(interaction: discord.Interaction):
 
     print("PING RECIBIDO")
     
-    await interaction.followup.send("🏓 Pong! Bot activo.")
+    await interaction.response.send_message("🏓 Pong! Bot activo.")
 
 @tree.command(name="sync_obras", description="Actualizar lista de obras y alias")
 async def sync_obras(interaction: discord.Interaction):
 
     if interaction.user.id != OWNER_ID:
-        await interaction.followup.send(
+        await interaction.response.send_message(
             "❌ Solo el dueño puede usar este comando.",
             ephemeral=True
         )
@@ -765,20 +765,20 @@ async def sync_obras(interaction: discord.Interaction):
 
         cargar_config()
 
-        await interaction.followup.send(
+        await interaction.response.send_message(
             "✅ Obras y alias actualizados."
         )
 
     except Exception as e:
 
-        await interaction.followup.send(
+        await interaction.response.send_message(
             f"❌ Error actualizando obras:\n{e}"
         )
 
 @tree.command(name="hoy", description="Ver qué obras se suben hoy")
 async def hoy(interaction: discord.Interaction):
 
-    await interaction.followup.send(
+    await interaction.response.send_message(
         "📅 Comando /hoy aún no implementado."
     )
 
@@ -786,7 +786,7 @@ async def hoy(interaction: discord.Interaction):
 @tree.command(name="manana", description="Ver qué obras se suben mañana")
 async def manana(interaction: discord.Interaction):
 
-    await interaction.followup.send(
+    await interaction.response.send_message(
         "📅 Comando /mañana aún no implementado."
     )
 
@@ -806,10 +806,10 @@ async def raw(
 
     if error:
 
-        await interaction.followup.send(error)
+        await interaction.response.send_message(error)
         return
 
-    await interaction.followup.send(
+    await interaction.response.send_messaged(
         f"📦 **RAW pendiente**\n"
         f"Obra: **{obra}**\n"
         f"Último capítulo sin RAW: **{cap}**"
@@ -827,7 +827,7 @@ async def estado(
 
     obra = resolver_alias(obra)
 
-    await interaction.followup.send(
+    await interaction.response.send_messaged(
         f"📊 Estado de **{obra}** aún no implementado."
     )
 
@@ -848,10 +848,10 @@ async def estado_obra(
 
     if error:
 
-        await interaction.followup.send(error)
+        await interaction.response.send_message(error)
         return
 
-    await interaction.followup.send(
+    await interaction.response.send_message(
         f"📊 **Estado de obra**\n"
         f"Obra: **{obra}**\n\n"
         f"Última tarea pendiente:\n"
@@ -884,14 +884,14 @@ async def plazos(
 
         if not obra or not cap or not tarea or not usuario or not fecha:
 
-            await interaction.followup.send(
+            await interaction.response.send_message(
                 "❌ Debes indicar obra, cap, tarea, usuario y fecha."
             )
             return
         try:
             datetime.datetime.strptime(fecha, "%Y-%m-%d")
         except ValueError:
-            await interaction.followup.send(
+            await interaction.response.send_message(
                 "❌ La fecha debe tener formato YYYY-MM-DD\nEjemplo: 2026-03-20"
             )
             return
@@ -900,7 +900,7 @@ async def plazos(
 
         marcar_asignacion_obra(obra, cap, tarea, usuario)
 
-        await interaction.followup.send(
+        await interaction.response.send_message(
             f"⏰ Plazo asignado\n"
             f"{obra} Cap {cap} — {tarea}\n"
             f"👤 {usuario}\n"
@@ -911,7 +911,7 @@ async def plazos(
 
         if not obra or not cap or not tarea:
 
-            await interaction.followup.send(
+            await interaction.response.send_message(
                 "❌ Debes indicar obra, cap y tarea."
             )
             return
@@ -923,13 +923,13 @@ async def plazos(
         else:
             msg = "❌ No se encontró el plazo"
 
-        await interaction.followup.send(msg)
+        await interaction.response.send_message(msg)
 
     elif accion == "terminado":
 
         if not obra or not cap or not tarea:
 
-            await interaction.followup.send(
+            await interaction.response.send_message(
                 "❌ Debes indicar obra, cap y tarea."
             )
             return
@@ -943,7 +943,7 @@ async def plazos(
         else:
             msg = "❌ No se encontró el plazo"
 
-        await interaction.followup.send(msg)
+        await interaction.response.send_message(msg)
 
     elif accion == "ver":
 
@@ -951,7 +951,7 @@ async def plazos(
 
         if not atrasos:
 
-            await interaction.followup.send(
+            await interaction.response.send_message(
                 "✅ No hay plazos atrasados."
             )
 
@@ -959,13 +959,13 @@ async def plazos(
 
             texto = "\n".join(atrasos)
 
-            await interaction.followup.send(
+            await interaction.response.send_message(
                 f"⚠️ **Plazos atrasados**\n\n{texto}"
             )
 
     else:
 
-        await interaction.followup.send(
+        await interaction.response.send_messaged(
             "❌ Acción no válida"
         )
 
@@ -987,7 +987,7 @@ async def alias(
 
         texto = ver_alias()
 
-        await interaction.followup.send(
+        await interaction.response.send_message(
             f"🎭 Alias registrados:\n\n{texto}"
         )
 
@@ -995,14 +995,14 @@ async def alias(
 
         if not obra or not alias:
 
-            await interaction.followup.send(
+            await interaction.response.send_message(
                 "❌ Debes indicar obra y alias."
             )
             return
 
         agregar_alias(obra, alias)
 
-        await interaction.followup.send(
+        await interaction.response.send_message(
             f"✅ Alias agregado\n{alias} → {obra}"
         )
 
@@ -1010,7 +1010,7 @@ async def alias(
 
         if not alias:
 
-            await interaction.followup.send(
+            await interaction.response.send_message(
                 "❌ Debes indicar el alias."
             )
             return
@@ -1025,11 +1025,11 @@ async def alias(
 
             msg = "❌ No se encontró ese alias."
 
-        await interaction.followup.send(msg)
+        await interaction.response.send_message(msg)
 
     else:
 
-        await interaction.followup.send(
+        await interaction.response.send_message(
             "❌ Acción inválida."
         )
 
@@ -1056,7 +1056,7 @@ async def modo_obra(
 
     if accion not in estados:
 
-        await interaction.followup.send(
+        await interaction.response.send_message(
             "❌ Acción inválida."
         )
         return
@@ -1065,12 +1065,12 @@ async def modo_obra(
 
     if not ok:
 
-        await interaction.followup.send(
+        await interaction.response.send_message(
             "❌ No se encontró la obra."
         )
         return
 
-    await interaction.followup.send(
+    await interaction.response.send_message(
         f"⚙️ Estado actualizado\n{obra} → {estados[accion]}"
     )
 
@@ -1092,7 +1092,7 @@ async def calendario(
 
         texto = ver_calendario()
 
-        await interaction.followup.send(
+        await interaction.response.send_message(
             f"📅 Calendario de obras\n\n{texto}"
         )
 
@@ -1100,14 +1100,14 @@ async def calendario(
 
         if not obra or not dia:
 
-            await interaction.followup.send(
+            await interaction.response.send_message(
                 "❌ Debes indicar obra y día."
             )
             return
 
         agregar_obra(obra, dia)
 
-        await interaction.followup.send(
+        await interaction.response.send_message(
             f"✅ Obra agregada\n{obra} → {dia}"
         )
 
@@ -1115,7 +1115,7 @@ async def calendario(
 
         if not obra or not dia:
 
-            await interaction.followup.send(
+            await interaction.response.send_message(
                 "❌ Debes indicar obra y nuevo día."
             )
             return
@@ -1130,11 +1130,11 @@ async def calendario(
 
             msg = "❌ No se encontró la obra."
 
-        await interaction.followup.send(msg)
+        await interaction.response.send_message(msg)
 
     else:
 
-        await interaction.followup.send(
+        await interaction.response.send_message(
             "❌ Acción inválida."
         )
 
@@ -1160,7 +1160,7 @@ async def eliminar_obra_cmd(
 
         msg = "❌ No se encontró la obra."
 
-    await interaction.followup.send(msg)
+    await interaction.response.send_message(msg)
 
 @tree.command(name="comandos", description="Ver lista de comandos")
 async def comandos(interaction: discord.Interaction):
@@ -1187,11 +1187,11 @@ async def comandos(interaction: discord.Interaction):
         "⚙️ **Administración**\n"
         "/eliminar_obra — Eliminar obra\n"
         "/sync_obras — Recargar obras\n"
-        "/ping — Ver si el bot está activo"
+        "/ping — Ver si el bot está activo", 
         "/creditos_cap — Ver créditos de un capítulo"
     )
 
-    await interaction.followup.send(texto)
+    await interaction.response.send_message(texto)
 
 @tree.command(name="dia_actu", description="Ver obras de hoy o mañana")
 @app_commands.describe(dia="hoy o mañana")
@@ -1220,7 +1220,7 @@ async def dia_actu(interaction: discord.Interaction, dia: str):
 
     else:
 
-        await interaction.followup.send(
+        await interaction.response.send_message(
             "❌ Usa 'hoy' o 'mañana'"
         )
         return
@@ -1229,14 +1229,14 @@ async def dia_actu(interaction: discord.Interaction, dia: str):
 
     if not obras:
 
-        await interaction.followup.send(
+        await interaction.response.send_message(
             f"📭 No hay obras para {dia}."
         )
         return
 
     texto = "\n".join(obras)
 
-    await interaction.followup.send(
+    await interaction.response.send_message(
         f"📅 Obras para {dia}:\n\n{texto}"
     )
 
@@ -1258,14 +1258,14 @@ async def creditos_cap(
 
     if error:
 
-        await interaction.followup.send(error)
+        await interaction.response.send_message(error)
         return
 
     trad = creditos["traductor"] or "—"
     clean = creditos["cleaner"] or "—"
     type_ = creditos["typer"] or "—"
 
-    await interaction.followup.send(
+    await interaction.response.send_message(
         f"📜 **Créditos**\n"
         f"Obra: **{obra}**\n"
         f"Capítulo: **{cap}**\n\n"
@@ -1298,7 +1298,7 @@ async def crear_caps(
         ws = sheet_principal.worksheet(obra)
     except Exception:
 
-        await interaction.followup.send(
+        await interaction.response.send_message(
             "❌ No se encontró la pestaña de esa obra."
         )
         return
@@ -1342,14 +1342,14 @@ async def crear_caps(
 
     if not nuevas_filas:
 
-        await interaction.followup.send(
+        await interaction.response.send_message(
             "✅ No hay capítulos nuevos para crear."
         )
         return
 
     ws.append_rows(nuevas_filas)
 
-    await interaction.followup.send(
+    await interaction.response.send_message(
         f"✅ Se agregaron **{len(nuevas_filas)} capítulos** a **{obra}**."
     )
 
@@ -1375,6 +1375,7 @@ if __name__ == "__main__":
 
     except Exception as e:
         print(f"❌ Error iniciando el bot: {e}")
+
 
 
 
