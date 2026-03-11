@@ -715,15 +715,13 @@ async def autocomplete_obras(
 @bot.event
 async def on_ready():
 
-    print(f"✅ Bot conectado como {bot.user}")
+    print(f"Bot conectado como {bot.user}")
 
     cargar_config()
 
-    try:
-        synced = await tree.sync()
-        print(f"🔧 Slash commands sincronizados: {len(synced)}")
-    except Exception as e:
-        print(f"❌ Error sincronizando comandos: {e}")
+    synced = await tree.sync()
+
+    print(f"{len(synced)} comandos sincronizados")
 
 # =========================
 # UTILIDADES
@@ -1403,3 +1401,4 @@ if __name__ == "__main__":
         finally:
 
             backoff = 60
+
