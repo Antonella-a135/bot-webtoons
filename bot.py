@@ -746,6 +746,8 @@ async def enviar_dm(msg):
 @tree.command(name="ping", description="Ver si el bot está activo")
 async def ping(interaction: discord.Interaction):
 
+    print("PING RECIBIDO")
+    
     await interaction.followup.send("🏓 Pong! Bot activo.")
 
 @tree.command(name="sync_obras", description="Actualizar lista de obras y alias")
@@ -1401,5 +1403,6 @@ if __name__ == "__main__":
         finally:
 
             backoff = 60
+
 
 
