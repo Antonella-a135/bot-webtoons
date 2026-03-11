@@ -35,6 +35,7 @@ SHEET_CONFIG_ID = "1ID3c9Qz0vmqZA0JW8P_Pu9OfCn6gc7VHTRZms3gsdqQ"
 # =========================
 
 intents = discord.Intents.default()
+intents.message_content = True
 
 bot = commands.Bot(
     command_prefix="!",
@@ -1403,6 +1404,7 @@ if __name__ == "__main__":
         finally:
 
             backoff = 60
+
 
 
 
