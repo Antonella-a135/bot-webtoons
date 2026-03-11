@@ -1365,45 +1365,17 @@ if __name__ == "__main__":
 
     keep_alive()
 
-    backoff = 60
-    max_backoff = 3600
+    print("🚀 Iniciando bot...")
 
-    while True:
+    try:
+        bot.run(DISCORD_TOKEN)
 
-        try:
+    except KeyboardInterrupt:
+        print("🛑 Bot detenido manualmente.")
 
-            print("🚀 Iniciando bot...")
-            bot.run(DISCORD_TOKEN)
+    except Exception as e:
+        print(f"❌ Error iniciando el bot: {e}")
 
-            print("⚠️ bot.run terminó inesperadamente.")
-            break
-
-        except discord.HTTPException as e:
-
-            if getattr(e, "status", None) == 429:
-
-                print(f"⚠️ Rate limit. Reintentando en {backoff}s...")
-                time.sleep(backoff)
-                backoff = min(backoff * 2, max_backoff)
-                continue
-
-            raise
-
-        except KeyboardInterrupt:
-
-            print("🛑 Bot detenido manualmente.")
-            break
-
-        except Exception as e:
-
-            print(f"❌ Error inesperado: {e}")
-            print(f"🔄 Reintentando en {backoff}s...")
-            time.sleep(backoff)
-            backoff = min(backoff * 2, max_backoff)
-
-        finally:
-
-            backoff = 60
 
 
 
