@@ -809,7 +809,7 @@ async def raw(
         await interaction.response.send_message(error)
         return
 
-    await interaction.response.send_messaged(
+    await interaction.response.send_message(
         f"📦 **RAW pendiente**\n"
         f"Obra: **{obra}**\n"
         f"Último capítulo sin RAW: **{cap}**"
@@ -827,7 +827,7 @@ async def estado(
 
     obra = resolver_alias(obra)
 
-    await interaction.response.send_messaged(
+    await interaction.response.send_message(
         f"📊 Estado de **{obra}** aún no implementado."
     )
 
@@ -965,7 +965,7 @@ async def plazos(
 
     else:
 
-        await interaction.response.send_messaged(
+        await interaction.response.send_message(
             "❌ Acción no válida"
         )
 
@@ -1375,6 +1375,7 @@ if __name__ == "__main__":
 
     except Exception as e:
         print(f"❌ Error iniciando el bot: {e}")
+
 
 
 
