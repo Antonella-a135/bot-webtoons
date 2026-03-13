@@ -1362,6 +1362,7 @@ if __name__ == "__main__":
     print("🚀 Iniciando bot...")
 
     try:
+        time.sleep(10)
         bot.run(DISCORD_TOKEN)
 
     except KeyboardInterrupt:
@@ -1369,6 +1370,7 @@ if __name__ == "__main__":
 
     except Exception as e:
         print(f"❌ Error iniciando el bot: {e}")
+
 
 
 
