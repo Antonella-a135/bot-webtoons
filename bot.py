@@ -720,9 +720,11 @@ async def on_ready():
 
     cargar_config()
 
-    synced = await tree.sync()
-
-    print(f"{len(synced)} comandos sincronizados")
+    try:
+        synced = await bot.tree.sync()
+        print(f"Comandos sincronizados: {len(synced)}")
+    except Exception as e:
+        print(f"Error sincronizando comandos: {e}")
 
 # =========================
 # UTILIDADES
@@ -1167,7 +1169,6 @@ async def comandos(interaction: discord.Interaction):
 
     texto = (
         "📜 **Comandos del bot**\n\n"
-
         "📅 **Publicaciones**\n"
         "/dia_actu — Obras que salen hoy o mañana\n"
         "/calendario — Ver o editar calendario\n\n"
@@ -1187,7 +1188,7 @@ async def comandos(interaction: discord.Interaction):
         "⚙️ **Administración**\n"
         "/eliminar_obra — Eliminar obra\n"
         "/sync_obras — Recargar obras\n"
-        "/ping — Ver si el bot está activo", 
+        "/ping — Ver si el bot está activo\n"
         "/creditos_cap — Ver créditos de un capítulo"
     )
 
@@ -1375,6 +1376,7 @@ if __name__ == "__main__":
 
     except Exception as e:
         print(f"❌ Error iniciando el bot: {e}")
+
 
 
 
