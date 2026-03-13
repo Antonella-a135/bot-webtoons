@@ -55,7 +55,8 @@ def home():
     return "Bot activo"
 
 def run():
-    app.run(host="0.0.0.0", port=10000)
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
 
 def keep_alive():
     t = Thread(target=run)
@@ -715,16 +716,8 @@ async def autocomplete_obras(
 
 @bot.event
 async def on_ready():
-
     print(f"Bot conectado como {bot.user}")
-
     cargar_config()
-
-    try:
-        synced = await bot.tree.sync()
-        print(f"Comandos sincronizados: {len(synced)}")
-    except Exception as e:
-        print(f"Error sincronizando comandos: {e}")
 
 # =========================
 # UTILIDADES
@@ -1376,6 +1369,7 @@ if __name__ == "__main__":
 
     except Exception as e:
         print(f"❌ Error iniciando el bot: {e}")
+
 
 
 
